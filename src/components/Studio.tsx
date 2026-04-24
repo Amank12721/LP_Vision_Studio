@@ -21,14 +21,6 @@ interface StudioProps {
   onBack: () => void;
 }
 
-const STYLE_OPTIONS = [
-  { id: "animated cartoon", label: "Cartoon" },
-  { id: "anime cel-shaded", label: "Anime" },
-  { id: "pixar 3d animation style", label: "Pixar 3D" },
-  { id: "studio ghibli watercolor animation", label: "Ghibli" },
-  { id: "comic book illustration", label: "Comic" },
-];
-
 export const Studio = ({ onBack }: StudioProps) => {
   const [projects, setProjects] = useState<Project[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -255,23 +247,6 @@ export const Studio = ({ onBack }: StudioProps) => {
 
           <div className="scene-card p-6 flex flex-col">
             <h3 className="font-display text-xl tracking-wide mb-4">Direction</h3>
-
-            <label className="mono text-[10px] uppercase tracking-widest text-muted-foreground mb-2">Visual Style</label>
-            <div className="grid grid-cols-2 gap-2 mb-6">
-              {STYLE_OPTIONS.map(s => (
-                <button
-                  key={s.id}
-                  onClick={() => updateActive(p => ({ ...p, style: s.id }))}
-                  className={`text-xs py-2 px-3 rounded border transition-all ${
-                    active.style === s.id
-                      ? "border-primary bg-primary/10 text-primary"
-                      : "border-border bg-secondary hover:border-primary/40"
-                  }`}
-                >
-                  {s.label}
-                </button>
-              ))}
-            </div>
 
             <Button
               onClick={generateScenes}
