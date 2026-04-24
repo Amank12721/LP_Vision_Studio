@@ -381,6 +381,17 @@ export const Studio = ({ onBack }: StudioProps) => {
               </Button>
             )}
 
+            {active.scenes.length > 0 && (
+              <div className="grid grid-cols-2 gap-2 mt-3">
+                <Button onClick={exportPDF} variant="outline" size="sm">
+                  <FileText className="h-4 w-4 mr-2" /> PDF
+                </Button>
+                <Button onClick={exportJSON} variant="outline" size="sm">
+                  <FileJson className="h-4 w-4 mr-2" /> JSON
+                </Button>
+              </div>
+            )}
+
             <div className="mt-auto pt-6 mono text-[10px] uppercase tracking-widest text-muted-foreground">
               {active.scenes.length} scenes · {active.scenes.filter(s => s.imageUrl).length} rendered
             </div>
