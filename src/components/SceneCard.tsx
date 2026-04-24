@@ -1,12 +1,11 @@
-import { useRef, useState } from "react";
+import { useState } from "react";
 import { Scene } from "@/lib/storage";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
-  ImageIcon, RefreshCw, Loader2, Pencil, Check, Download, Trash2,
-  Volume2, Play, Pause, Mic,
+  ImageIcon, RefreshCw, Loader2, Pencil, Check, Download, Trash2, Volume2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -15,15 +14,12 @@ interface SceneCardProps {
   index: number;
   onUpdate: (scene: Scene) => void;
   onGenerate: (scene: Scene) => void;
-  onNarrate: (scene: Scene) => void;
   onDelete: (id: string) => void;
 }
 
-export const SceneCard = ({ scene, index, onUpdate, onGenerate, onNarrate, onDelete }: SceneCardProps) => {
+export const SceneCard = ({ scene, index, onUpdate, onGenerate, onDelete }: SceneCardProps) => {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(scene);
-  const [playing, setPlaying] = useState(false);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
 
   const save = () => {
     onUpdate(draft);
@@ -36,22 +32,6 @@ export const SceneCard = ({ scene, index, onUpdate, onGenerate, onNarrate, onDel
     a.href = scene.imageUrl;
     a.download = `${scene.title.replace(/\s+/g, "-").toLowerCase()}.png`;
     a.click();
-  };
-
-  const togglePlay = () => {
-    if (!scene.audioUrl) return;
-    if (!audioRef.current) {
-      audioRef.current = new Audio(scene.audioUrl);
-      audioRef.current.onended = () => setPlaying(false);
-      audioRef.current.onpause = () => setPlaying(false);
-    }
-    if (playing) {
-      audioRef.current.pause();
-      setPlaying(false);
-    } else {
-      audioRef.current.play();
-      setPlaying(true);
-    }
   };
 
   return (
@@ -72,25 +52,12 @@ export const SceneCard = ({ scene, index, onUpdate, onGenerate, onNarrate, onDel
           </div>
         )}
 
-        {/* Frame number badge */}
         <div className="absolute top-3 left-3 bg-background/80 backdrop-blur-sm border border-border rounded px-2 py-1">
           <span className="mono text-[10px] uppercase tracking-widest text-primary">
             Frame {String(index + 1).padStart(2, "0")}
           </span>
         </div>
 
-        {/* Audio playing badge */}
-        {scene.audioUrl && (
-          <button
-            onClick={togglePlay}
-            className="absolute bottom-3 left-3 bg-background/80 backdrop-blur-sm border border-border rounded-full p-2 hover:bg-primary hover:text-primary-foreground transition-colors"
-            aria-label={playing ? "Pause narration" : "Play narration"}
-          >
-            {playing ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}
-          </button>
-        )}
-
-        {/* Action overlay */}
         {scene.imageUrl && !scene.isGenerating && (
           <div className="absolute top-3 right-3 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
             <Button size="icon" variant="secondary" className="h-8 w-8" onClick={downloadImage}>
@@ -121,7 +88,7 @@ export const SceneCard = ({ scene, index, onUpdate, onGenerate, onNarrate, onDel
             </div>
             <div>
               <Label className="mono text-[9px] uppercase tracking-widest text-muted-foreground">Narration</Label>
-              <Textarea value={draft.narration || ""} onChange={(e) => setDraft({ ...draft, narration: e.target.value, audioUrl: undefined })} className="text-xs mt-1 resize-none italic" rows={3} placeholder="Voiceover text..." />
+              <Textarea value={draft.narration || ""} onChange={(e) => setDraft({ ...draft, narration: e.target.value })} className="text-xs mt-1 resize-none italic" rows={3} placeholder="Voiceover text..." />
             </div>
             <div className="flex gap-2 mt-auto">
               <Button size="sm" onClick={save} className="flex-1 bg-gradient-amber text-primary-foreground hover:opacity-90">
@@ -151,7 +118,7 @@ export const SceneCard = ({ scene, index, onUpdate, onGenerate, onNarrate, onDel
                   <Volume2 className="h-3 w-3 text-primary" />
                   <span className="mono text-[9px] uppercase tracking-widest text-primary">Narration</span>
                 </div>
-                <p className="text-xs italic text-foreground/80 leading-relaxed line-clamp-3">"{scene.narration}"</p>
+                <p className="text-xs italic text-foreground/80 leading-relaxed">"{scene.narration}"</p>
               </div>
             )}
 
@@ -161,38 +128,21 @@ export const SceneCard = ({ scene, index, onUpdate, onGenerate, onNarrate, onDel
               {scene.mood && <span className="mono text-[9px] uppercase tracking-widest bg-primary/10 border border-primary/30 text-primary rounded px-2 py-0.5">{scene.mood.slice(0, 20)}</span>}
             </div>
 
-            <div className="flex gap-2 mt-auto">
-              <Button
-                size="sm"
-                variant={scene.imageUrl ? "outline" : "default"}
-                onClick={() => onGenerate(scene)}
-                disabled={scene.isGenerating}
-                className={cn("flex-1", !scene.imageUrl && "bg-gradient-amber text-primary-foreground hover:opacity-90")}
-              >
-                {scene.isGenerating ? (
-                  <><Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> Rendering...</>
-                ) : scene.imageUrl ? (
-                  <><RefreshCw className="h-3.5 w-3.5 mr-1.5" /> Frame</>
-                ) : (
-                  <><ImageIcon className="h-3.5 w-3.5 mr-1.5" /> Frame</>
-                )}
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => onNarrate(scene)}
-                disabled={scene.isNarrating || !(scene.narration || scene.description)}
-                className="flex-1 border-primary/40 hover:border-primary hover:bg-primary/10"
-              >
-                {scene.isNarrating ? (
-                  <><Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> Voicing...</>
-                ) : scene.audioUrl ? (
-                  <><RefreshCw className="h-3.5 w-3.5 mr-1.5" /> Voice</>
-                ) : (
-                  <><Mic className="h-3.5 w-3.5 mr-1.5" /> Narrate</>
-                )}
-              </Button>
-            </div>
+            <Button
+              size="sm"
+              variant={scene.imageUrl ? "outline" : "default"}
+              onClick={() => onGenerate(scene)}
+              disabled={scene.isGenerating}
+              className={cn("mt-auto", !scene.imageUrl && "bg-gradient-amber text-primary-foreground hover:opacity-90")}
+            >
+              {scene.isGenerating ? (
+                <><Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> Rendering...</>
+              ) : scene.imageUrl ? (
+                <><RefreshCw className="h-3.5 w-3.5 mr-1.5" /> Regenerate Frame</>
+              ) : (
+                <><ImageIcon className="h-3.5 w-3.5 mr-1.5" /> Generate Frame</>
+              )}
+            </Button>
           </>
         )}
       </div>
