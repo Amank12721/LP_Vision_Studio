@@ -1,4 +1,5 @@
 import { corsHeaders } from "https://esm.sh/@supabase/supabase-js@2.95.0/cors";
+import { getVertexAccessToken, getVertexConfig } from "../_shared/vertex.ts";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -15,27 +16,21 @@ Deno.serve(async (req) => {
       );
     }
 
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY not configured");
+    const { projectId, location } = getVertexConfig();
+    const token = await getVertexAccessToken();
 
     const systemPrompt = `You are a master storyboard director. Break the user's ${mode} into 4-8 distinct visual scenes for a ${style} storyboard. For each scene, write a vivid, specific image-generation prompt (camera angle, lighting, characters, setting, action, mood). Be concrete and visual. Keep scenes sequential.`;
 
-    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "google/gemini-3-flash-preview",
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: script },
-        ],
-        tools: [
-          {
-            type: "function",
-            function: {
+    const model = "gemini-2.5-flash";
+    const url = `https://${location}-aiplatform.googleapis.com/v1/projects/${projectId}/locations/${location}/publishers/google/models/${model}:generateContent`;
+
+    const body = {
+      systemInstruction: { parts: [{ text: systemPrompt }] },
+      contents: [{ role: "user", parts: [{ text: script }] }],
+      tools: [
+        {
+          functionDeclarations: [
+            {
               name: "create_storyboard",
               description: "Return the storyboard scenes",
               parameters: {
@@ -46,47 +41,57 @@ Deno.serve(async (req) => {
                     items: {
                       type: "object",
                       properties: {
-                        title: { type: "string", description: "Short scene title" },
-                        description: { type: "string", description: "1-2 sentence narrative description" },
-                        imagePrompt: { type: "string", description: "Detailed visual prompt for image generation" },
-                        characters: { type: "string", description: "Characters in the scene" },
-                        setting: { type: "string", description: "Location / environment" },
-                        mood: { type: "string", description: "Emotional tone" },
+                        title: { type: "string" },
+                        description: { type: "string" },
+                        imagePrompt: { type: "string" },
+                        characters: { type: "string" },
+                        setting: { type: "string" },
+                        mood: { type: "string" },
                       },
                       required: ["title", "description", "imagePrompt", "characters", "setting", "mood"],
-                      additionalProperties: false,
                     },
                   },
                 },
                 required: ["scenes"],
-                additionalProperties: false,
               },
             },
-          },
-        ],
-        tool_choice: { type: "function", function: { name: "create_storyboard" } },
-      }),
+          ],
+        },
+      ],
+      toolConfig: {
+        functionCallingConfig: {
+          mode: "ANY",
+          allowedFunctionNames: ["create_storyboard"],
+        },
+      },
+    };
+
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(body),
     });
 
     if (!response.ok) {
+      const t = await response.text();
+      console.error("Vertex generateContent error:", response.status, t);
       if (response.status === 429) {
-        return new Response(JSON.stringify({ error: "Rate limit exceeded. Try again shortly." }), {
+        return new Response(JSON.stringify({ error: "Vertex AI rate limit hit. Try again shortly." }), {
           status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
-      if (response.status === 402) {
-        return new Response(JSON.stringify({ error: "AI credits exhausted. Add funds in Settings → Workspace → Usage." }), {
-          status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-      const t = await response.text();
-      console.error("AI error:", response.status, t);
-      throw new Error("AI gateway error");
+      return new Response(JSON.stringify({ error: `Vertex AI error (${response.status}): ${t.slice(0, 300)}` }), {
+        status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
     const data = await response.json();
-    const toolCall = data.choices?.[0]?.message?.tool_calls?.[0];
-    const args = toolCall ? JSON.parse(toolCall.function.arguments) : { scenes: [] };
+    const parts = data.candidates?.[0]?.content?.parts || [];
+    const fnCall = parts.find((p: any) => p.functionCall)?.functionCall;
+    const args = fnCall?.args || { scenes: [] };
 
     return new Response(JSON.stringify(args), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },

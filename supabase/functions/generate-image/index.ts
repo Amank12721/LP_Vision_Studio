@@ -1,4 +1,5 @@
 import { corsHeaders } from "https://esm.sh/@supabase/supabase-js@2.95.0/cors";
+import { getVertexAccessToken, getVertexConfig } from "../_shared/vertex.ts";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -14,44 +15,55 @@ Deno.serve(async (req) => {
       });
     }
 
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY not configured");
+    const { projectId, location } = getVertexConfig();
+    const token = await getVertexAccessToken();
 
-    const fullPrompt = `${prompt}. Style: ${style}. 16:9 aspect ratio.`;
+    const fullPrompt = `${prompt}. Style: ${style}.`;
 
-    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    // Vertex AI Imagen — uses :predict endpoint
+    const model = "imagen-4.0-generate-001";
+    const url = `https://${location}-aiplatform.googleapis.com/v1/projects/${projectId}/locations/${location}/publishers/google/models/${model}:predict`;
+
+    const body = {
+      instances: [{ prompt: fullPrompt }],
+      parameters: {
+        sampleCount: 1,
+        aspectRatio: "16:9",
+        safetySetting: "block_only_high",
+        personGeneration: "allow_adult",
+      },
+    };
+
+    const response = await fetch(url, {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
+        Authorization: `Bearer ${token}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({
-        model: "google/gemini-2.5-flash-image",
-        messages: [{ role: "user", content: fullPrompt }],
-        modalities: ["image", "text"],
-      }),
+      body: JSON.stringify(body),
     });
 
     if (!response.ok) {
+      const t = await response.text();
+      console.error("Vertex Imagen error:", response.status, t);
       if (response.status === 429) {
-        return new Response(JSON.stringify({ error: "Rate limit exceeded. Try again shortly." }), {
+        return new Response(JSON.stringify({ error: "Vertex AI rate limit hit. Try again shortly." }), {
           status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
-      if (response.status === 402) {
-        return new Response(JSON.stringify({ error: "AI credits exhausted. Add funds in Settings → Workspace → Usage." }), {
-          status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-      const t = await response.text();
-      console.error("Image error:", response.status, t);
-      throw new Error("Image gateway error");
+      return new Response(JSON.stringify({ error: `Vertex Imagen error (${response.status}): ${t.slice(0, 300)}` }), {
+        status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
     const data = await response.json();
-    const imageUrl = data.choices?.[0]?.message?.images?.[0]?.image_url?.url;
+    const prediction = data.predictions?.[0];
+    const b64 = prediction?.bytesBase64Encoded;
+    const mime = prediction?.mimeType || "image/png";
 
-    if (!imageUrl) throw new Error("No image returned");
+    if (!b64) throw new Error("No image returned by Imagen");
+
+    const imageUrl = `data:${mime};base64,${b64}`;
 
     return new Response(JSON.stringify({ imageUrl }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
