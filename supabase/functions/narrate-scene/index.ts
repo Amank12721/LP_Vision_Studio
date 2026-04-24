@@ -63,7 +63,7 @@ Deno.serve(async (req) => {
     }
 
     const audioBuffer = await response.arrayBuffer();
-    const audioBase64 = base64Encode(new Uint8Array(audioBuffer));
+    const audioBase64 = base64Encode(audioBuffer);
     const audioUrl = `data:audio/mpeg;base64,${audioBase64}`;
 
     return new Response(JSON.stringify({ audioUrl }), {
