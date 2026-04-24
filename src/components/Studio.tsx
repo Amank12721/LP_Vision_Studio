@@ -156,6 +156,111 @@ export const Studio = ({ onBack }: StudioProps) => {
     updateActive(p => ({ ...p, scenes: p.scenes.map(s => s.id === scene.id ? scene : s) }));
   };
 
+  const exportJSON = () => {
+    if (!active) return;
+    const blob = new Blob([JSON.stringify(active, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${active.name.replace(/[^a-z0-9]/gi, "_")}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast.success("JSON exported");
+  };
+
+  const loadImageAsDataUrl = (url: string): Promise<{ data: string; w: number; h: number }> =>
+    new Promise((resolve, reject) => {
+      const img = new Image();
+      img.crossOrigin = "anonymous";
+      img.onload = () => {
+        const canvas = document.createElement("canvas");
+        canvas.width = img.naturalWidth;
+        canvas.height = img.naturalHeight;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) return reject(new Error("Canvas error"));
+        ctx.drawImage(img, 0, 0);
+        try {
+          resolve({ data: canvas.toDataURL("image/jpeg", 0.92), w: img.naturalWidth, h: img.naturalHeight });
+        } catch (e) {
+          reject(e);
+        }
+      };
+      img.onerror = () => reject(new Error("Image load failed"));
+      img.src = url;
+    });
+
+  const exportPDF = async () => {
+    if (!active) return;
+    const tId = toast.loading("Building PDF...");
+    try {
+      const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+      const pageW = pdf.internal.pageSize.getWidth();
+      const pageH = pdf.internal.pageSize.getHeight();
+      const margin = 15;
+      const contentW = pageW - margin * 2;
+
+      // Cover
+      pdf.setFont("helvetica", "bold");
+      pdf.setFontSize(24);
+      pdf.text(active.name, margin, 30);
+      pdf.setFont("helvetica", "normal");
+      pdf.setFontSize(11);
+      pdf.text(`${active.scenes.length} scenes · ${active.style} · ${active.mode}`, margin, 40);
+
+      for (let i = 0; i < active.scenes.length; i++) {
+        const s = active.scenes[i];
+        pdf.addPage();
+        let y = margin;
+
+        pdf.setFont("helvetica", "bold");
+        pdf.setFontSize(10);
+        pdf.text(`SCENE ${String(i + 1).padStart(2, "0")}`, margin, y);
+        y += 6;
+        pdf.setFontSize(16);
+        const title = pdf.splitTextToSize(s.title, contentW);
+        pdf.text(title, margin, y);
+        y += title.length * 7 + 2;
+
+        if (s.imageUrl) {
+          try {
+            const img = await loadImageAsDataUrl(s.imageUrl);
+            const ratio = img.h / img.w;
+            const imgW = contentW;
+            const imgH = Math.min(imgW * ratio, 110);
+            const finalW = imgH === 110 ? 110 / ratio : imgW;
+            pdf.addImage(img.data, "JPEG", margin, y, finalW, imgH);
+            y += imgH + 6;
+          } catch {
+            pdf.setFont("helvetica", "italic");
+            pdf.setFontSize(9);
+            pdf.text("[Image could not be embedded]", margin, y);
+            y += 6;
+          }
+        }
+
+        pdf.setFont("helvetica", "normal");
+        pdf.setFontSize(10);
+        const desc = pdf.splitTextToSize(s.description, contentW);
+        pdf.text(desc, margin, y);
+        y += desc.length * 5 + 4;
+
+        if (s.narration) {
+          pdf.setFont("helvetica", "italic");
+          pdf.setFontSize(10);
+          pdf.text("Narration:", margin, y);
+          y += 5;
+          const nar = pdf.splitTextToSize(s.narration, contentW);
+          pdf.text(nar, margin, y);
+        }
+      }
+
+      pdf.save(`${active.name.replace(/[^a-z0-9]/gi, "_")}.pdf`);
+      toast.success("PDF exported", { id: tId });
+    } catch (e: any) {
+      toast.error(e.message || "PDF export failed", { id: tId });
+    }
+  };
+
   const deleteScene = (id: string) => {
     updateActive(p => ({ ...p, scenes: p.scenes.filter(s => s.id !== id) }));
   };
