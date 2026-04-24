@@ -3,8 +3,8 @@ export interface Scene {
   title: string;
   description: string;
   imagePrompt: string;
-  characters: string;
-  setting: string;
+  context: string;
+  models3d: string;
   mood: string;
   narration?: string;
   audioUrl?: string;
@@ -17,8 +17,10 @@ export interface Project {
   id: string;
   name: string;
   script: string;
+  generatedScenes: string; // Raw text from GROQ
   mode: "script" | "story" | "lesson";
   style: string;
+  sceneCount: number;
   scenes: Scene[];
   createdAt: number;
   updatedAt: number;
@@ -52,8 +54,10 @@ export function createProject(name: string): Project {
     id: crypto.randomUUID(),
     name,
     script: "",
+    generatedScenes: "",
     mode: "script",
     style: "animated cartoon",
+    sceneCount: 6,
     scenes: [],
     createdAt: Date.now(),
     updatedAt: Date.now(),

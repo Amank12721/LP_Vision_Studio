@@ -4,9 +4,11 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Slider } from "@/components/ui/slider";
 import { Logo } from "./Logo";
 import { SceneCard } from "./SceneCard";
-import { ArrowLeft, Sparkles, Loader2, Plus, FolderOpen, Trash2, Wand2, Zap, Download, FileJson, FileText } from "lucide-react";
+import { ArrowLeft, Sparkles, Loader2, Plus, FolderOpen, Trash2, Wand2, Zap, Download, FileJson, FileText, RefreshCw } from "lucide-react";
 import jsPDF from "jspdf";
 import { toast } from "sonner";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -38,9 +40,16 @@ export const Studio = ({ onBack }: StudioProps) => {
       saveProjects([p]);
       setActiveProjectId(p.id);
     } else {
-      setProjects(ps);
+      // Migrate old projects without sceneCount
+      const migratedPs = ps.map(p => ({
+        ...p,
+        sceneCount: p.sceneCount || 6,
+        generatedScenes: p.generatedScenes || ""
+      }));
+      setProjects(migratedPs);
+      saveProjects(migratedPs);
       const aid = getActiveProjectId();
-      setActiveId(aid && ps.find(p => p.id === aid) ? aid : ps[0].id);
+      setActiveId(aid && migratedPs.find(p => p.id === aid) ? aid : migratedPs[0].id);
     }
   }, []);
 
@@ -82,37 +91,188 @@ export const Studio = ({ onBack }: StudioProps) => {
     }
   };
 
+  const parseJSONScript = (script: string): Scene[] | null => {
+    try {
+      const json = JSON.parse(script);
+      
+      // Check if it's the custom format with scenes array
+      if (json.scenes && Array.isArray(json.scenes)) {
+        return json.scenes.map((s: any, i: number) => ({
+          id: crypto.randomUUID(),
+          title: `Scene ${s.scene_number || i + 1}`,
+          description: s.visual_description || '',
+          imagePrompt: s.visual_description || '',
+          narration: s.narration || '',
+          context: s.visual_description || `Scene ${s.scene_number || i + 1}`,
+          models3d: (s.assets || []).join(', ') || 'No assets specified',
+          mood: '',
+        }));
+      }
+      
+      return null;
+    } catch (e) {
+      return null;
+    }
+  };
+
+  const extractModelsFromText = (text: string): string => {
+    // Common 3D models based on keywords in text
+    const models: string[] = [];
+    const lowerText = text.toLowerCase();
+    
+    // Characters
+    if (lowerText.includes('teacher') || lowerText.includes('instructor')) models.push('teacher character');
+    if (lowerText.includes('student') || lowerText.includes('class')) models.push('student characters');
+    if (lowerText.includes('person') || lowerText.includes('people')) models.push('character models');
+    
+    // Furniture
+    if (lowerText.includes('desk') || lowerText.includes('table')) models.push('desk');
+    if (lowerText.includes('chair') || lowerText.includes('seat')) models.push('chairs');
+    if (lowerText.includes('board') || lowerText.includes('whiteboard')) models.push('whiteboard');
+    
+    // Educational items
+    if (lowerText.includes('book')) models.push('textbooks');
+    if (lowerText.includes('pen') || lowerText.includes('pencil')) models.push('writing tools');
+    if (lowerText.includes('microscope')) models.push('microscope');
+    if (lowerText.includes('diagram') || lowerText.includes('chart')) models.push('educational diagrams');
+    if (lowerText.includes('cell') || lowerText.includes('biology')) models.push('cell model');
+    
+    // Room elements
+    if (lowerText.includes('classroom') || lowerText.includes('room')) {
+      models.push('classroom walls', 'floor', 'ceiling', 'door', 'windows');
+    }
+    if (lowerText.includes('lab') || lowerText.includes('laboratory')) {
+      models.push('lab equipment', 'lab table', 'safety equipment');
+    }
+    
+    // Kitchen/Home items
+    if (lowerText.includes('kitchen')) models.push('kitchen counter', 'cabinets', 'appliances');
+    if (lowerText.includes('mug') || lowerText.includes('cup')) models.push('mug', 'cup');
+    if (lowerText.includes('drill')) models.push('drill tool');
+    if (lowerText.includes('hole')) models.push('drilling equipment');
+    
+    // Nature/Outdoor
+    if (lowerText.includes('plant') || lowerText.includes('tree')) models.push('plant models');
+    if (lowerText.includes('water') || lowerText.includes('ocean')) models.push('water effects');
+    if (lowerText.includes('sun') || lowerText.includes('light')) models.push('lighting');
+    
+    return models.length > 0 ? models.join(', ') : 'basic scene objects';
+  };
+
   const generateScenes = async () => {
     if (!active || !active.script.trim()) {
       toast.error("Please paste a script first");
       return;
     }
+    
+    // Check if script is JSON format
+    const jsonScenes = parseJSONScript(active.script);
+    if (jsonScenes) {
+      // Direct JSON conversion
+      const humanText = jsonScenes.map((s, i) => 
+        `Scene ${i + 1}: ${s.title}\nNarration: ${s.narration}\nContext: ${s.context}\n3D Models: ${s.models3d}\n`
+      ).join('\n');
+      
+      updateActive(p => ({ ...p, generatedScenes: humanText }));
+      toast.success(`Converted ${jsonScenes.length} scenes from JSON`);
+      return;
+    }
+    
+    // Otherwise, use GROQ API
     setGeneratingScenes(true);
     try {
+      const sceneCount = active.sceneCount || 6;
+      console.log('Generating scenes with count:', sceneCount);
+      
       const { data, error } = await supabase.functions.invoke("generate-scenes", {
-        body: { script: active.script, mode: active.mode, style: active.style },
+        body: { script: active.script, mode: active.mode, style: active.style, sceneCount },
       });
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
 
-      const scenes: Scene[] = (data.scenes || []).map((s: any) => ({
-        id: crypto.randomUUID(),
-        title: s.title,
-        description: s.description,
-        imagePrompt: s.imagePrompt,
-        narration: s.narration || s.description || "",
-        characters: s.characters,
-        setting: s.setting,
-        mood: s.mood,
-      }));
+      const scenes: Scene[] = (data.scenes || []).map((s: any) => {
+        console.log('Scene data from GROQ:', s);
+        
+        // Extract models from scene text if not provided by AI
+        const autoModels = extractModelsFromText(`${s.title} ${s.description} ${s.narration || ''}`);
+        
+        return {
+          id: crypto.randomUUID(),
+          title: s.title || 'Untitled',
+          description: s.description || '',
+          imagePrompt: s.imagePrompt || s.title || '',
+          narration: s.narration || s.description || '',
+          context: s.title || '', // Use title as context
+          models3d: s.models3d || autoModels, // Use AI models or auto-extracted
+          mood: s.mood || '',
+        };
+      });
 
-      updateActive(p => ({ ...p, scenes }));
-      toast.success(`Generated ${scenes.length} scenes`);
+      console.log('Mapped scenes:', scenes);
+
+      // Convert scenes to human-readable text
+      const humanText = scenes.map((s, i) => 
+        `Scene ${i + 1}: ${s.title}\nNarration: ${s.narration}\nContext: ${s.context}\n3D Models: ${s.models3d}\n`
+      ).join('\n');
+
+      // Only update the text, not the actual scene cards
+      updateActive(p => ({ ...p, generatedScenes: humanText }));
+      toast.success(`Generated ${scenes.length} scenes text`);
     } catch (e: any) {
       toast.error(e.message || "Failed to generate scenes");
     } finally {
       setGeneratingScenes(false);
     }
+  };
+
+  const generateStoryboard = () => {
+    if (!active || !active.generatedScenes.trim()) {
+      toast.error("Generate scenes first");
+      return;
+    }
+    
+    // Parse the scenes text into actual scene cards
+    const lines = active.generatedScenes.split('\n');
+    const newScenes: Scene[] = [];
+    let currentScene: any = null;
+    
+    lines.forEach(line => {
+      const sceneMatch = line.match(/^Scene (\d+): (.+)$/);
+      const narrationMatch = line.match(/^Narration: (.+)$/);
+      const contextMatch = line.match(/^Context: (.+)$/);
+      const modelsMatch = line.match(/^3D Models: (.+)$/);
+      
+      if (sceneMatch) {
+        if (currentScene) newScenes.push(currentScene);
+        currentScene = {
+          id: crypto.randomUUID(),
+          title: sceneMatch[2],
+          description: "",
+          imagePrompt: sceneMatch[2],
+          narration: "",
+          context: "",
+          models3d: "",
+          mood: "",
+        };
+      } else if (currentScene) {
+        if (narrationMatch) {
+          currentScene.narration = narrationMatch[1];
+          currentScene.description = narrationMatch[1];
+          currentScene.imagePrompt = `${currentScene.title}. ${narrationMatch[1]}`;
+        } else if (contextMatch) {
+          const contextValue = contextMatch[1];
+          currentScene.context = (contextValue && contextValue !== 'N/A' && !contextValue.includes('Add context')) ? contextValue : '';
+        } else if (modelsMatch) {
+          const modelsValue = modelsMatch[1];
+          currentScene.models3d = (modelsValue && modelsValue !== 'N/A' && !modelsValue.includes('List 3D models')) ? modelsValue : '';
+        }
+      }
+    });
+    
+    if (currentScene) newScenes.push(currentScene);
+    
+    updateActive(p => ({ ...p, scenes: newScenes }));
+    toast.success(`Created ${newScenes.length} storyboard cards`);
   };
 
   const generateImageForScene = async (scene: Scene) => {
@@ -322,28 +482,15 @@ export const Studio = ({ onBack }: StudioProps) => {
 
       <main className="max-w-[1600px] mx-auto px-6 py-8 space-y-8">
         {/* Input panel */}
-        <div className="grid lg:grid-cols-[1fr_400px] gap-6">
+        <div className="grid lg:grid-cols-[1fr_1fr_400px] gap-6">
           <div className="scene-card p-6">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="font-display text-2xl tracking-wide">Source Material</h2>
-              <Tabs value={active.mode} onValueChange={(v) => updateActive(p => ({ ...p, mode: v as any }))}>
-                <TabsList className="bg-secondary">
-                  <TabsTrigger value="script" className="mono text-[10px] uppercase tracking-widest">Script</TabsTrigger>
-                  <TabsTrigger value="story" className="mono text-[10px] uppercase tracking-widest">Story</TabsTrigger>
-                  <TabsTrigger value="lesson" className="mono text-[10px] uppercase tracking-widest">Lesson</TabsTrigger>
-                </TabsList>
-              </Tabs>
+              <h2 className="font-display text-2xl tracking-wide">Script</h2>
             </div>
             <Textarea
               value={active.script}
               onChange={(e) => updateActive(p => ({ ...p, script: e.target.value }))}
-              placeholder={
-                active.mode === "script"
-                  ? "INT. KITCHEN - DAY\n\nSARA pours coffee. Her phone buzzes — it's a number she hasn't seen in years..."
-                  : active.mode === "lesson"
-                  ? "Today we're learning about the water cycle. Water evaporates from oceans, forms clouds..."
-                  : "A young inventor discovers her grandmother's old workshop hidden behind the bookshelf..."
-              }
+              placeholder="INT. CLASSROOM - DAY\n\nTeacher explains photosynthesis. Students watch as plants convert sunlight into energy..."
               className="min-h-[280px] resize-none mono text-sm bg-background/50 border-border focus:border-primary"
             />
             <div className="mono text-[10px] uppercase tracking-widest text-muted-foreground mt-2">
@@ -351,8 +498,74 @@ export const Studio = ({ onBack }: StudioProps) => {
             </div>
           </div>
 
+          <div className="scene-card p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="font-display text-2xl tracking-wide">Scenes</h2>
+              <Button 
+                size="sm" 
+                variant="default"
+                onClick={generateStoryboard}
+                disabled={!active.generatedScenes.trim()}
+                className="bg-gradient-amber text-primary-foreground hover:opacity-90"
+              >
+                <Sparkles className="h-3.5 w-3.5 mr-1.5" /> Generate Storyboard
+              </Button>
+            </div>
+            <Textarea
+              value={active.generatedScenes || ""}
+              onChange={(e) => updateActive(p => ({ ...p, generatedScenes: e.target.value }))}
+              placeholder="Generated scenes will appear here...\n\nFormat:\nScene 1: Title\nNarration: Your narration text\nContext: What's happening in this scene\n3D Models: teacher, desk, whiteboard, plant cell\n\nEdit text and click 'Generate Storyboard' to create cards."
+              className="min-h-[280px] resize-none text-sm bg-background/50 border-border focus:border-primary"
+            />
+            <div className="mono text-[10px] uppercase tracking-widest text-muted-foreground mt-2">
+              Edit scenes text above
+            </div>
+          </div>
+
           <div className="scene-card p-6 flex flex-col">
-            <h3 className="font-display text-xl tracking-wide mb-4">Direction</h3>
+            <h3 className="font-display text-xl tracking-wide mb-4">Scenes</h3>
+
+            <div className="mb-4">
+              <Label className="mono text-[10px] uppercase tracking-widest text-muted-foreground mb-2 block">
+                Number of Scenes: {active.sceneCount || 6}
+              </Label>
+              <Slider
+                value={[active.sceneCount || 6]}
+                onValueChange={(v) => {
+                  const newCount = v[0];
+                  updateActive(p => {
+                    const currentScenes = p.scenes.length;
+                    let updatedScenes = [...p.scenes];
+                    
+                    // Add empty scenes if count increased
+                    if (newCount > currentScenes) {
+                      for (let i = currentScenes; i < newCount; i++) {
+                        updatedScenes.push({
+                          id: crypto.randomUUID(),
+                          title: `Scene ${i + 1}`,
+                          description: "Edit this scene description",
+                          imagePrompt: "Add your image prompt here",
+                          narration: "Add narration text here",
+                          context: "",
+                          models3d: "",
+                          mood: "",
+                        });
+                      }
+                    }
+                    // Remove scenes if count decreased
+                    else if (newCount < currentScenes) {
+                      updatedScenes = updatedScenes.slice(0, newCount);
+                    }
+                    
+                    return { ...p, sceneCount: newCount, scenes: updatedScenes };
+                  });
+                }}
+                min={3}
+                max={12}
+                step={1}
+                className="w-full"
+              />
+            </div>
 
             <Button
               onClick={generateScenes}
@@ -360,9 +573,9 @@ export const Studio = ({ onBack }: StudioProps) => {
               className="bg-gradient-amber text-primary-foreground hover:opacity-90 glow-amber font-semibold mb-3"
             >
               {generatingScenes ? (
-                <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Directing scenes...</>
+                <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Generating scenes...</>
               ) : (
-                <><Wand2 className="h-4 w-4 mr-2" /> Break Into Scenes</>
+                <><Wand2 className="h-4 w-4 mr-2" /> Generate Scenes</>
               )}
             </Button>
 
@@ -404,7 +617,7 @@ export const Studio = ({ onBack }: StudioProps) => {
             <Sparkles className="h-10 w-10 mx-auto mb-4 text-primary/40" />
             <h3 className="font-display text-2xl tracking-wide mb-2">Your storyboard begins here</h3>
             <p className="text-muted-foreground text-sm max-w-md mx-auto">
-              Drop your script above and let our director AI break it into scenes. Each scene becomes an editable frame.
+              Drop your script above and let AI break it into scenes. Each scene becomes an editable card.
             </p>
           </div>
         ) : (

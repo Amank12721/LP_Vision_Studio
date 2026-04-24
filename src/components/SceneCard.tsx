@@ -5,7 +5,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
-  ImageIcon, RefreshCw, Loader2, Pencil, Check, Download, Trash2, Volume2,
+  ImageIcon, RefreshCw, Loader2, Pencil, Check, Download, Trash2, Volume2, ClipboardPaste,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -32,6 +32,44 @@ export const SceneCard = ({ scene, index, onUpdate, onGenerate, onDelete }: Scen
     a.href = scene.imageUrl;
     a.download = `${scene.title.replace(/\s+/g, "-").toLowerCase()}.png`;
     a.click();
+  };
+
+  const pasteImage = async () => {
+    try {
+      const clipboardItems = await navigator.clipboard.read();
+      for (const item of clipboardItems) {
+        for (const type of item.types) {
+          if (type.startsWith('image/')) {
+            const blob = await item.getType(type);
+            const reader = new FileReader();
+            reader.onload = (e) => {
+              const imageUrl = e.target?.result as string;
+              onUpdate({ ...scene, imageUrl });
+            };
+            reader.readAsDataURL(blob);
+            return;
+          }
+        }
+      }
+      alert('No image found in clipboard');
+    } catch (err) {
+      console.error('Failed to paste image:', err);
+      alert('Failed to paste image. Please try copying an image first.');
+    }
+  };
+
+  const openInGemini = async () => {
+    const prompt = `Create image: ${scene.narration || scene.description}. 2D flat illustration`;
+    
+    // Copy to clipboard
+    try {
+      await navigator.clipboard.writeText(prompt);
+    } catch (err) {
+      console.error('Failed to copy:', err);
+    }
+    
+    // Open Gemini
+    window.open('https://gemini.google.com/', '_blank');
   };
 
   return (
@@ -65,6 +103,14 @@ export const SceneCard = ({ scene, index, onUpdate, onGenerate, onDelete }: Scen
             </Button>
           </div>
         )}
+
+        {!scene.imageUrl && !scene.isGenerating && (
+          <div className="absolute top-3 right-3 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+            <Button size="icon" variant="secondary" className="h-8 w-8" onClick={pasteImage} title="Paste image from clipboard">
+              <ClipboardPaste className="h-3.5 w-3.5" />
+            </Button>
+          </div>
+        )}
       </div>
 
       {/* Content */}
@@ -74,12 +120,12 @@ export const SceneCard = ({ scene, index, onUpdate, onGenerate, onDelete }: Scen
             <Input value={draft.title} onChange={(e) => setDraft({ ...draft, title: e.target.value })} className="font-display text-lg h-9" placeholder="Scene title" />
             <div className="grid grid-cols-2 gap-2">
               <div>
-                <Label className="mono text-[9px] uppercase tracking-widest text-muted-foreground">Characters</Label>
-                <Input value={draft.characters} onChange={(e) => setDraft({ ...draft, characters: e.target.value })} className="h-8 text-xs mt-1" />
+                <Label className="mono text-[9px] uppercase tracking-widest text-muted-foreground">Context</Label>
+                <Input value={draft.context} onChange={(e) => setDraft({ ...draft, context: e.target.value })} className="h-8 text-xs mt-1" placeholder="What's happening" />
               </div>
               <div>
-                <Label className="mono text-[9px] uppercase tracking-widest text-muted-foreground">Setting</Label>
-                <Input value={draft.setting} onChange={(e) => setDraft({ ...draft, setting: e.target.value })} className="h-8 text-xs mt-1" />
+                <Label className="mono text-[9px] uppercase tracking-widest text-muted-foreground">3D Models</Label>
+                <Input value={draft.models3d} onChange={(e) => setDraft({ ...draft, models3d: e.target.value })} className="h-8 text-xs mt-1" placeholder="desk, chair, etc" />
               </div>
             </div>
             <div>
@@ -123,8 +169,8 @@ export const SceneCard = ({ scene, index, onUpdate, onGenerate, onDelete }: Scen
             )}
 
             <div className="flex flex-wrap gap-1.5 mt-1">
-              {scene.characters && <span className="mono text-[9px] uppercase tracking-widest bg-secondary border border-border rounded px-2 py-0.5">{scene.characters.slice(0, 30)}</span>}
-              {scene.setting && <span className="mono text-[9px] uppercase tracking-widest bg-secondary border border-border rounded px-2 py-0.5">{scene.setting.slice(0, 30)}</span>}
+              {scene.context && <span className="mono text-[9px] uppercase tracking-widest bg-secondary border border-border rounded px-2 py-0.5">{scene.context.slice(0, 40)}</span>}
+              {scene.models3d && <span className="mono text-[9px] uppercase tracking-widest bg-secondary border border-border rounded px-2 py-0.5">{scene.models3d.slice(0, 40)}</span>}
               {scene.mood && <span className="mono text-[9px] uppercase tracking-widest bg-primary/10 border border-primary/30 text-primary rounded px-2 py-0.5">{scene.mood.slice(0, 20)}</span>}
             </div>
 
@@ -132,6 +178,7 @@ export const SceneCard = ({ scene, index, onUpdate, onGenerate, onDelete }: Scen
               size="sm"
               variant={scene.imageUrl ? "outline" : "default"}
               onClick={() => onGenerate(scene)}
+              onContextMenu={(e) => { e.preventDefault(); openInGemini(); }}
               disabled={scene.isGenerating}
               className={cn("mt-auto", !scene.imageUrl && "bg-gradient-amber text-primary-foreground hover:opacity-90")}
             >

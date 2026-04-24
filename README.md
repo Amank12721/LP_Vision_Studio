@@ -1,3 +1,3 @@
-# Welcome to your Lovable project
+# Storyboard Studio
 
-TODO: Document your project here
+Turn scripts, lessons, and stories into illustrated scenes.
