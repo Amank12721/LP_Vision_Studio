@@ -6,7 +6,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Logo } from "./Logo";
 import { SceneCard } from "./SceneCard";
-import { ArrowLeft, Sparkles, Loader2, Plus, FolderOpen, Trash2, Wand2, Zap } from "lucide-react";
+import { ArrowLeft, Sparkles, Loader2, Plus, FolderOpen, Trash2, Wand2, Zap, Download, FileJson, FileText } from "lucide-react";
+import jsPDF from "jspdf";
 import { toast } from "sonner";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
