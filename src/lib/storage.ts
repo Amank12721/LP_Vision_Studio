@@ -6,8 +6,11 @@ export interface Scene {
   characters: string;
   setting: string;
   mood: string;
+  narration?: string;
+  audioUrl?: string;
   imageUrl?: string;
   isGenerating?: boolean;
+  isNarrating?: boolean;
 }
 
 export interface Project {
