@@ -152,6 +152,37 @@ export const Studio = ({ onBack }: StudioProps) => {
     toast.success("All frames rendered");
   };
 
+  const generateNarration = async (scene: Scene) => {
+    if (!active) return;
+    const text = (scene.narration || scene.description || "").trim();
+    if (!text) {
+      toast.error("No narration text for this scene");
+      return;
+    }
+    updateActive(p => ({
+      ...p,
+      scenes: p.scenes.map(s => s.id === scene.id ? { ...s, isNarrating: true } : s),
+    }));
+    try {
+      const { data, error } = await supabase.functions.invoke("narrate-scene", {
+        body: { text },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+
+      updateActive(p => ({
+        ...p,
+        scenes: p.scenes.map(s => s.id === scene.id ? { ...s, audioUrl: data.audioUrl, isNarrating: false } : s),
+      }));
+    } catch (e: any) {
+      toast.error(e.message || "Failed to generate narration");
+      updateActive(p => ({
+        ...p,
+        scenes: p.scenes.map(s => s.id === scene.id ? { ...s, isNarrating: false } : s),
+      }));
+    }
+  };
+
   const updateScene = (scene: Scene) => {
     updateActive(p => ({ ...p, scenes: p.scenes.map(s => s.id === scene.id ? scene : s) }));
   };
