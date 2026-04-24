@@ -6,7 +6,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Logo } from "./Logo";
 import { SceneCard } from "./SceneCard";
-import { ArrowLeft, Sparkles, Loader2, Plus, FolderOpen, Trash2, Wand2, Zap } from "lucide-react";
+import { ArrowLeft, Sparkles, Loader2, Plus, FolderOpen, Trash2, Wand2, Zap, Mic } from "lucide-react";
 import { toast } from "sonner";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -26,6 +26,7 @@ export const Studio = ({ onBack }: StudioProps) => {
   const [activeId, setActiveId] = useState<string | null>(null);
   const [generatingScenes, setGeneratingScenes] = useState(false);
   const [generatingAll, setGeneratingAll] = useState(false);
+  const [narratingAll, setNarratingAll] = useState(false);
 
   // Load on mount
   useEffect(() => {
@@ -293,18 +294,41 @@ export const Studio = ({ onBack }: StudioProps) => {
             </Button>
 
             {active.scenes.length > 0 && (
-              <Button
-                onClick={generateAllFrames}
-                disabled={generatingAll}
-                variant="outline"
-                className="border-primary/40 hover:border-primary hover:bg-primary/10"
-              >
-                {generatingAll ? (
-                  <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Rendering...</>
-                ) : (
-                  <><Zap className="h-4 w-4 mr-2" /> Render All Frames</>
-                )}
-              </Button>
+              <>
+                <Button
+                  onClick={generateAllFrames}
+                  disabled={generatingAll}
+                  variant="outline"
+                  className="border-primary/40 hover:border-primary hover:bg-primary/10"
+                >
+                  {generatingAll ? (
+                    <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Rendering...</>
+                  ) : (
+                    <><Zap className="h-4 w-4 mr-2" /> Render All Frames</>
+                  )}
+                </Button>
+                <Button
+                  onClick={async () => {
+                    setNarratingAll(true);
+                    for (const scene of active.scenes) {
+                      if (!scene.audioUrl && (scene.narration || scene.description)) {
+                        await generateNarration(scene);
+                      }
+                    }
+                    setNarratingAll(false);
+                    toast.success("All narrations recorded");
+                  }}
+                  disabled={narratingAll}
+                  variant="outline"
+                  className="mt-3 border-primary/40 hover:border-primary hover:bg-primary/10"
+                >
+                  {narratingAll ? (
+                    <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Voicing...</>
+                  ) : (
+                    <><Mic className="h-4 w-4 mr-2" /> Narrate All Scenes</>
+                  )}
+                </Button>
+              </>
             )}
 
             <div className="mt-auto pt-6 mono text-[10px] uppercase tracking-widest text-muted-foreground">
