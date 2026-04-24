@@ -99,6 +99,7 @@ export const Studio = ({ onBack }: StudioProps) => {
         title: s.title,
         description: s.description,
         imagePrompt: s.imagePrompt,
+        narration: s.narration || s.description || "",
         characters: s.characters,
         setting: s.setting,
         mood: s.mood,

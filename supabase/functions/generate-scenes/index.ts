@@ -18,7 +18,9 @@ Deno.serve(async (req) => {
     const GROQ_API_KEY = Deno.env.get("GROQ_API_KEY");
     if (!GROQ_API_KEY) throw new Error("GROQ_API_KEY is not configured");
 
-    const systemPrompt = `You are a master storyboard director. Break the user's ${mode} into 4-8 distinct visual scenes for a ${style} storyboard. For each scene, write a vivid, specific image-generation prompt (camera angle, lighting, characters, setting, action, mood). Be concrete and visual. Keep scenes sequential.
+    const systemPrompt = `You are a master storyboard director AND narrator. Break the user's ${mode} into 4-8 distinct visual scenes for a ${style} storyboard. For each scene, write:
+- a vivid, specific image-generation prompt (camera angle, lighting, characters, setting, action, mood — concrete and visual)
+- a SHORT narration (1-2 sentences, max ~40 words) that a voiceover artist would read over the frame. Natural, evocative, present tense.
 
 Return ONLY a JSON object with this exact shape — no prose, no markdown:
 {
@@ -27,6 +29,7 @@ Return ONLY a JSON object with this exact shape — no prose, no markdown:
       "title": "string",
       "description": "string",
       "imagePrompt": "string",
+      "narration": "string",
       "characters": "string",
       "setting": "string",
       "mood": "string"
