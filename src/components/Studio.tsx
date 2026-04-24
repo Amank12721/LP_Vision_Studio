@@ -337,6 +337,7 @@ export const Studio = ({ onBack }: StudioProps) => {
                     index={i}
                     onUpdate={updateScene}
                     onGenerate={generateImageForScene}
+                    onNarrate={generateNarration}
                     onDelete={deleteScene}
                   />
                 </div>
