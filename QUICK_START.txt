@@ -1,0 +1,85 @@
+╔══════════════════════════════════════════════════════════════╗
+║         STORYBOARD STUDIO - QUICK START GUIDE               ║
+╚══════════════════════════════════════════════════════════════╝
+
+📋 PREREQUISITES:
+   ✓ Node.js (v16+)
+   ✓ Python (v3.8+)
+   ✓ GROQ API Key from https://console.groq.com
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+⚙️ SETUP (One-time):
+
+1. Install Frontend:
+   npm install
+
+2. Install Backend:
+   cd api
+   pip install -r requirements.txt
+   cd ..
+
+3. Configure API Key:
+   - Copy .env.local.example to .env.local
+   - Add your GROQ API key in .env.local
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🚀 RUN APPLICATION:
+
+Terminal 1 - Backend:
+   cd api
+   
+   Windows PowerShell:
+   $env:GROQ_API_KEY='your-key-here'; python flask_api.py
+   
+   Mac/Linux:
+   export GROQ_API_KEY='your-key-here' && python flask_api.py
+
+Terminal 2 - Frontend:
+   npm run dev
+
+Open Browser:
+   http://localhost:8080
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📖 HOW TO USE:
+
+1. Enter text in "Plain Text" box (minimum 10 characters)
+2. Adjust scene count (3-12)
+3. Click "Generate Scenes"
+4. Wait 5-10 seconds
+5. Click "Create Scenes"
+6. Export as PDF or JSON
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📝 EXAMPLE TEXT:
+
+Put some sugar in your mouth. How does it taste? Block your 
+nose by pressing it between your thumb and index finger. Now 
+put some more sugar in your mouth. Can you taste it? Our 
+tongue has taste buds that detect different flavors.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🐛 COMMON ISSUES:
+
+Problem: 400 Bad Request
+Fix: Enter at least 10 characters
+
+Problem: API Key Error
+Fix: Set GROQ_API_KEY in terminal
+
+Problem: Connection Failed
+Fix: Make sure Flask is running on port 5000
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📚 MORE INFO:
+   - README.md - Project overview
+   - SETUP_GUIDE.md - Detailed setup instructions
+   - api/README.md - API documentation
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

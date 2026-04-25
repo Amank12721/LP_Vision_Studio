@@ -8,10 +8,9 @@ import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
 import { Logo } from "./Logo";
 import { SceneCard } from "./SceneCard";
-import { ArrowLeft, Sparkles, Loader2, Plus, FolderOpen, Trash2, Wand2, Zap, Download, FileJson, FileText, RefreshCw } from "lucide-react";
+import { ArrowLeft, Sparkles, Loader2, Plus, FolderOpen, Trash2, Wand2, Zap, FileJson, FileText } from "lucide-react";
 import jsPDF from "jspdf";
 import { toast } from "sonner";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -172,11 +171,14 @@ export const Studio = ({ onBack }: StudioProps) => {
     try {
       const sceneCount = active.sceneCount || 6;
       
-      // Call Flask API instead of Supabase
-      const response = await fetch('http://localhost:5000/generate-scenes', {
+      // Call Flask API (use environment variable for production)
+      const apiUrl = import.meta.env.VITE_FLASK_API_URL || 'http://localhost:5000';
+      console.log('Using API URL:', apiUrl);
+      const response = await fetch(`${apiUrl}/generate-scenes`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'ngrok-skip-browser-warning': 'true',
         },
         body: JSON.stringify({
           script: plainText,
@@ -315,10 +317,15 @@ export const Studio = ({ onBack }: StudioProps) => {
         if (narrationMatch) {
           currentScene.narration = narrationMatch[1];
           currentScene.description = narrationMatch[1];
-          currentScene.imagePrompt = `${currentScene.title}. ${narrationMatch[1]}`;
         } else if (contextMatch) {
           const contextValue = contextMatch[1];
           currentScene.context = (contextValue && contextValue !== 'N/A' && !contextValue.includes('Add context')) ? contextValue : '';
+          // Update imagePrompt with context if available
+          if (currentScene.context) {
+            currentScene.imagePrompt = `${currentScene.title}. ${currentScene.narration}. Context: ${currentScene.context}`;
+          } else {
+            currentScene.imagePrompt = `${currentScene.title}. ${currentScene.narration}`;
+          }
         } else if (modelsMatch) {
           const modelsValue = modelsMatch[1];
           currentScene.models3d = (modelsValue && modelsValue !== 'N/A' && !modelsValue.includes('List 3D models')) ? modelsValue : '';
