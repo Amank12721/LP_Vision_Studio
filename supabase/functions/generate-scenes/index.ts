@@ -18,55 +18,7 @@ Deno.serve(async (req) => {
     const GROQ_API_KEY = Deno.env.get("GROQ_API_KEY");
     if (!GROQ_API_KEY) throw new Error("GROQ_API_KEY is not configured");
 
-    const systemPrompt = `You are a master storyboard director AND narrator creating educational content for Class 10 students. 
-
-CRITICAL REQUIREMENT: You MUST generate EXACTLY ${sceneCount} scenes. No more, no less. This is mandatory.
-
-Break the user's ${mode} into exactly ${sceneCount} distinct visual scenes for a ${style} storyboard suitable for 3D animation. 
-
-IMPORTANT: Create a smooth, flowing narrative where each scene connects naturally to the next. The narration should tell a cohesive story that flows seamlessly from one frame to the next.
-
-For each scene, you MUST provide ALL these fields:
-
-1. TITLE: Short scene title (this will be used as context)
-2. DESCRIPTION: Brief description of what's happening
-3. IMAGE PROMPT: Detailed visual description for image generation (camera angle, lighting, action, mood)
-4. NARRATION: Clear voiceover script (1-2 sentences, max 40 words) that flows naturally with other scenes
-5. MODELS3D: CRITICAL - Carefully scan and analyze the scene. List ALL 3D models/objects/characters needed to build this scene in 3D software. Be extremely specific and comprehensive.
-
-CRITICAL FOR MODELS3D FIELD - THIS IS THE MOST IMPORTANT FIELD:
-- Read the scene description and narration carefully
-- Identify EVERY physical object, character, prop, furniture, tool mentioned or implied
-- Be specific: "wooden classroom desk, metal rolling chair, whiteboard with black frame"
-- Include characters: "teacher character model, 5 student character models"
-- Include background: "classroom walls, tiled floor, ceiling with lights, windows, door"
-- Include props: "textbooks, pens, notebooks, backpacks, water bottle"
-- Include educational items: "plant cell 3D diagram, microscope, periodic table poster"
-- Separate all items with commas
-- Think like a 3D artist - what would you need to model this scene?
-- NEVER leave this field empty - if unsure, list basic items like "character, floor, walls"
-
-Return ONLY a JSON object with this exact shape — no prose, no markdown:
-{
-  "scenes": [
-    {
-      "title": "string (this describes what's happening - will be used as context)",
-      "description": "string",
-      "imagePrompt": "string",
-      "narration": "string",
-      "models3d": "string (REQUIRED - comprehensive comma-separated list of ALL 3D models needed)",
-      "mood": "string"
-    }
-  ]
-}
-
-EXAMPLE of excellent models3d field:
-"teacher character model, 5 student character models, wooden classroom desk, 4 metal chairs, whiteboard with black frame and markers, plant cell 3D diagram model, microscope, 3 textbooks, pen, notebook, classroom walls with paint, tiled floor, ceiling with fluorescent lights, 2 windows with glass, wooden door, wall clock, educational posters"
-
-REMEMBER: 
-1. Generate EXACTLY ${sceneCount} scenes
-2. NEVER leave models3d field empty
-3. Scan each scene thoroughly and list EVERY object needed for 3D modeling`;
+    const systemPrompt = `You are a Senior 3D Technical Director. Task: Convert input into EXACTLY ${sceneCount} scenes. Step 1: Output a Markdown table with columns: Scene # | Required 3D Assets | Labels (UI Text) | Animation Logic (GLB Safe) | Visual Description | Narration. Step 2: Provide the same data in a valid JSON block at the end, wrapped in \`\`\`json tags.`;
 
     const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
       method: "POST",
@@ -75,13 +27,12 @@ REMEMBER:
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "llama-3.3-70b-versatile",
+        model: "llama-3.1-8b-instant",
         messages: [
           { role: "system", content: systemPrompt },
-          { role: "user", content: script },
+          { role: "user", content: `Create a detailed 3D storyboard for: ${script}` },
         ],
-        response_format: { type: "json_object" },
-        temperature: 0.8,
+        temperature: 0.2,
       }),
     });
 
@@ -110,9 +61,22 @@ REMEMBER:
     console.log(content);
     console.log("=== END RESPONSE ===");
 
+    // Extract table and JSON parts
+    let tableText = "";
+    let jsonContent = content;
+    
+    if (content.includes("```json")) {
+      // Split table and JSON
+      tableText = content.split("```json")[0].trim();
+      const jsonMatch = content.split("```json")[1]?.split("```")[0];
+      if (jsonMatch) {
+        jsonContent = jsonMatch.trim();
+      }
+    }
+
     let parsed: any = {};
     try {
-      parsed = JSON.parse(content);
+      parsed = JSON.parse(jsonContent);
       console.log("=== PARSED JSON ===");
       console.log(JSON.stringify(parsed, null, 2));
       console.log("=== END PARSED ===");
@@ -133,7 +97,11 @@ REMEMBER:
       console.warn(`Generated only ${scenes.length} scenes, requested ${sceneCount}`);
     }
 
-    return new Response(JSON.stringify({ scenes }), {
+    return new Response(JSON.stringify({ 
+      scenes,
+      tableText,  // Include markdown table
+      fullResponse: content  // Include full response with table + JSON
+    }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (e) {

@@ -29,6 +29,8 @@ export const Studio = ({ onBack }: StudioProps) => {
   const [activeId, setActiveId] = useState<string | null>(null);
   const [generatingScenes, setGeneratingScenes] = useState(false);
   const [generatingAll, setGeneratingAll] = useState(false);
+  const [plainText, setPlainText] = useState(""); // New: Plain text input
+  const [convertingToJSON, setConvertingToJSON] = useState(false); // New: Loading state
 
   // Load on mount
   useEffect(() => {
@@ -157,6 +159,61 @@ export const Studio = ({ onBack }: StudioProps) => {
     if (lowerText.includes('sun') || lowerText.includes('light')) models.push('lighting');
     
     return models.length > 0 ? models.join(', ') : 'basic scene objects';
+  };
+
+  // New: Convert plain text to JSON script using Flask API
+  const convertPlainTextToJSON = async () => {
+    if (!active || !plainText.trim()) {
+      toast.error("Please enter plain text first");
+      return;
+    }
+    
+    setConvertingToJSON(true);
+    try {
+      const sceneCount = active.sceneCount || 6;
+      
+      // Call Flask API instead of Supabase
+      const response = await fetch('http://localhost:5000/generate-scenes', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          script: plainText,
+          sceneCount: sceneCount
+        })
+      });
+      
+      if (!response.ok) {
+        throw new Error(`API error: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      
+      if (data.error) {
+        throw new Error(data.error);
+      }
+
+      // Response includes: scenes[], tableText, fullResponse, scenesText
+      if (data.fullResponse) {
+        // Show full response (table + JSON) in script box
+        updateActive(p => ({ 
+          ...p, 
+          script: data.fullResponse,
+          generatedScenes: data.scenesText || ''  // Also set the scenes text
+        }));
+        toast.success(`Generated ${data.scenes?.length || 0} scenes with table`);
+      } else {
+        // Fallback
+        const jsonOutput = JSON.stringify(data, null, 2);
+        updateActive(p => ({ ...p, script: jsonOutput }));
+        toast.success("Converted to JSON format");
+      }
+    } catch (e: any) {
+      toast.error(e.message || "Failed to convert to JSON");
+    } finally {
+      setConvertingToJSON(false);
+    }
   };
 
   const generateScenes = async () => {
@@ -481,26 +538,70 @@ export const Studio = ({ onBack }: StudioProps) => {
       </header>
 
       <main className="max-w-[1600px] mx-auto px-6 py-8 space-y-8">
-        {/* Input panel */}
-        <div className="grid lg:grid-cols-[1fr_1fr_400px] gap-6">
+        {/* Input panel - 2 boxes */}
+        <div className="grid lg:grid-cols-[1fr_1fr] gap-6">
+          {/* Box 1: Plain Text Input */}
           <div className="scene-card p-6">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="font-display text-2xl tracking-wide">Script</h2>
+              <h2 className="font-display text-2xl tracking-wide">Plain Text</h2>
             </div>
+            
+            {/* Scene count slider */}
+            <div className="mb-4">
+              <Label className="mono text-[10px] uppercase tracking-widest text-muted-foreground mb-2 block">
+                Number of Scenes: {active.sceneCount || 6}
+              </Label>
+              <Slider
+                value={[active.sceneCount || 6]}
+                onValueChange={(v) => updateActive(p => ({ ...p, sceneCount: v[0] }))}
+                min={3}
+                max={12}
+                step={1}
+                className="w-full"
+              />
+            </div>
+            
             <Textarea
-              value={active.script}
-              onChange={(e) => updateActive(p => ({ ...p, script: e.target.value }))}
-              placeholder="INT. CLASSROOM - DAY\n\nTeacher explains photosynthesis. Students watch as plants convert sunlight into energy..."
-              className="min-h-[280px] resize-none mono text-sm bg-background/50 border-border focus:border-primary"
+              value={plainText}
+              onChange={(e) => setPlainText(e.target.value)}
+              placeholder="Paste your plain text here...\n\nExample:\nPut some sugar in your mouth. How does it taste?\nBlock your nose by pressing it between your thumb and index finger..."
+              className="min-h-[220px] resize-none text-sm bg-background/50 border-border focus:border-primary"
             />
-            <div className="mono text-[10px] uppercase tracking-widest text-muted-foreground mt-2">
-              {active.script.length} chars
+            <div className="flex items-center justify-between mt-2">
+              <div className="mono text-[10px] uppercase tracking-widest text-muted-foreground">
+                {plainText.length} chars
+              </div>
+              <Button 
+                size="sm" 
+                variant="default"
+                onClick={convertPlainTextToJSON}
+                disabled={!plainText.trim() || convertingToJSON}
+                className="bg-gradient-to-r from-blue-500 to-cyan-500 text-white hover:opacity-90"
+              >
+                {convertingToJSON ? (
+                  <><Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> Converting...</>
+                ) : (
+                  <><Wand2 className="h-3.5 w-3.5 mr-1.5" /> Generate Scenes</>
+                )}
+              </Button>
             </div>
           </div>
 
+          {/* Box 2: Generated Scenes Text */}
           <div className="scene-card p-6">
             <div className="flex items-center justify-between mb-4">
               <h2 className="font-display text-2xl tracking-wide">Scenes</h2>
+            </div>
+            <Textarea
+              value={active.generatedScenes || ""}
+              onChange={(e) => updateActive(p => ({ ...p, generatedScenes: e.target.value }))}
+              placeholder="Generated scenes will appear here...\n\nFormat:\nScene 1: Title\nNarration: Your narration text\nContext: What's happening\n3D Models: list of models"
+              className="min-h-[280px] resize-none text-sm bg-background/50 border-border focus:border-primary"
+            />
+            <div className="flex items-center justify-between mt-2">
+              <div className="mono text-[10px] uppercase tracking-widest text-muted-foreground">
+                Edit scenes text above
+              </div>
               <Button 
                 size="sm" 
                 variant="default"
@@ -508,106 +609,44 @@ export const Studio = ({ onBack }: StudioProps) => {
                 disabled={!active.generatedScenes.trim()}
                 className="bg-gradient-amber text-primary-foreground hover:opacity-90"
               >
-                <Sparkles className="h-3.5 w-3.5 mr-1.5" /> Generate Storyboard
+                <Zap className="h-3.5 w-3.5 mr-1.5" /> Create Scenes
               </Button>
-            </div>
-            <Textarea
-              value={active.generatedScenes || ""}
-              onChange={(e) => updateActive(p => ({ ...p, generatedScenes: e.target.value }))}
-              placeholder="Generated scenes will appear here...\n\nFormat:\nScene 1: Title\nNarration: Your narration text\nContext: What's happening in this scene\n3D Models: teacher, desk, whiteboard, plant cell\n\nEdit text and click 'Generate Storyboard' to create cards."
-              className="min-h-[280px] resize-none text-sm bg-background/50 border-border focus:border-primary"
-            />
-            <div className="mono text-[10px] uppercase tracking-widest text-muted-foreground mt-2">
-              Edit scenes text above
             </div>
           </div>
+        </div>
 
-          <div className="scene-card p-6 flex flex-col">
-            <h3 className="font-display text-xl tracking-wide mb-4">Scenes</h3>
-
-            <div className="mb-4">
-              <Label className="mono text-[10px] uppercase tracking-widest text-muted-foreground mb-2 block">
-                Number of Scenes: {active.sceneCount || 6}
-              </Label>
-              <Slider
-                value={[active.sceneCount || 6]}
-                onValueChange={(v) => {
-                  const newCount = v[0];
-                  updateActive(p => {
-                    const currentScenes = p.scenes.length;
-                    let updatedScenes = [...p.scenes];
-                    
-                    // Add empty scenes if count increased
-                    if (newCount > currentScenes) {
-                      for (let i = currentScenes; i < newCount; i++) {
-                        updatedScenes.push({
-                          id: crypto.randomUUID(),
-                          title: `Scene ${i + 1}`,
-                          description: "Edit this scene description",
-                          imagePrompt: "Add your image prompt here",
-                          narration: "Add narration text here",
-                          context: "",
-                          models3d: "",
-                          mood: "",
-                        });
-                      }
-                    }
-                    // Remove scenes if count decreased
-                    else if (newCount < currentScenes) {
-                      updatedScenes = updatedScenes.slice(0, newCount);
-                    }
-                    
-                    return { ...p, sceneCount: newCount, scenes: updatedScenes };
-                  });
-                }}
-                min={3}
-                max={12}
-                step={1}
-                className="w-full"
-              />
-            </div>
-
-            <Button
-              onClick={generateScenes}
-              disabled={generatingScenes || !active.script.trim()}
-              className="bg-gradient-amber text-primary-foreground hover:opacity-90 glow-amber font-semibold mb-3"
-            >
-              {generatingScenes ? (
-                <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Generating scenes...</>
-              ) : (
-                <><Wand2 className="h-4 w-4 mr-2" /> Generate Scenes</>
-              )}
-            </Button>
-
+        {/* Settings panel - simplified */}
+        <div className="scene-card p-6">
+          <div className="flex items-center justify-between gap-6">
             {active.scenes.length > 0 && (
-              <Button
-                onClick={generateAllFrames}
-                disabled={generatingAll}
-                variant="outline"
-                className="border-primary/40 hover:border-primary hover:bg-primary/10"
-              >
-                {generatingAll ? (
-                  <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Rendering...</>
-                ) : (
-                  <><Zap className="h-4 w-4 mr-2" /> Render All Frames</>
-                )}
-              </Button>
-            )}
-
-            {active.scenes.length > 0 && (
-              <div className="grid grid-cols-2 gap-2 mt-3">
-                <Button onClick={exportPDF} variant="outline" size="sm">
-                  <FileText className="h-4 w-4 mr-2" /> PDF
+              <>
+                <Button
+                  onClick={generateAllFrames}
+                  disabled={generatingAll}
+                  variant="outline"
+                  className="border-primary/40 hover:border-primary hover:bg-primary/10"
+                >
+                  {generatingAll ? (
+                    <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Rendering...</>
+                  ) : (
+                    <><Zap className="h-4 w-4 mr-2" /> Render All Frames</>
+                  )}
                 </Button>
-                <Button onClick={exportJSON} variant="outline" size="sm">
-                  <FileJson className="h-4 w-4 mr-2" /> JSON
-                </Button>
-              </div>
-            )}
 
-            <div className="mt-auto pt-6 mono text-[10px] uppercase tracking-widest text-muted-foreground">
-              {active.scenes.length} scenes · {active.scenes.filter(s => s.imageUrl).length} rendered
-            </div>
+                <div className="flex gap-2">
+                  <Button onClick={exportPDF} variant="outline" size="sm">
+                    <FileText className="h-4 w-4 mr-2" /> PDF
+                  </Button>
+                  <Button onClick={exportJSON} variant="outline" size="sm">
+                    <FileJson className="h-4 w-4 mr-2" /> JSON
+                  </Button>
+                </div>
+
+                <div className="ml-auto mono text-[10px] uppercase tracking-widest text-muted-foreground">
+                  {active.scenes.length} scenes · {active.scenes.filter(s => s.imageUrl).length} rendered
+                </div>
+              </>
+            )}
           </div>
         </div>
 
