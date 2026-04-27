@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
 import { Logo } from "./Logo";
 import { SceneCard } from "./SceneCard";
-import { ArrowLeft, Sparkles, Loader2, Plus, FolderOpen, Trash2, Wand2, Zap, FileJson, FileText } from "lucide-react";
+import { ArrowLeft, Sparkles, Loader2, Plus, FolderOpen, Trash2, Wand2, Zap, FileJson, FileText, Settings } from "lucide-react";
 import jsPDF from "jspdf";
 import { toast } from "sonner";
 import {
@@ -30,6 +30,27 @@ export const Studio = ({ onBack }: StudioProps) => {
   const [generatingAll, setGeneratingAll] = useState(false);
   const [plainText, setPlainText] = useState(""); // New: Plain text input
   const [convertingToJSON, setConvertingToJSON] = useState(false); // New: Loading state
+  const [showPromptEditor, setShowPromptEditor] = useState(false); // Toggle prompt editor
+  const [customPrompt, setCustomPrompt] = useState(""); // Custom prompt template
+  
+  // Default prompt template
+  const defaultPromptTemplate = `You are a Senior 3D Technical Director creating educational content for school students.
+CRITICAL REQUIREMENT: You MUST create EXACTLY {sceneCount} scenes - no more, no less.
+If you create {sceneCount - 1} or {sceneCount + 1} scenes, you have FAILED the task.
+Count your scenes carefully before responding.
+
+IMPORTANT GUIDELINES:
+1. NARRATION: Write detailed, educational narration (3-5 sentences per scene) that explains concepts clearly for students
+2. VISUAL DESCRIPTION (Context): Explain the SCIENTIFIC CONCEPT or PRINCIPLE being demonstrated - NOT the scene visuals
+   - Example: 'Taste receptors on tongue detect sweet molecules' NOT 'Person eating sugar'
+   - Focus on: Why it happens, what principle is shown, the science behind it
+3. FOCUS: Emphasize scientific concepts, processes, and phenomena - NOT characters or people
+4. VISUAL: Focus on objects, equipment, experiments, and visual demonstrations of concepts
+5. 3D ASSETS: Prioritize educational props, lab equipment, diagrams, models - minimize human characters
+6. LANGUAGE: Use simple, clear language suitable for school students
+
+Step 1: Output a Markdown table with columns: Scene # | Required 3D Assets | Labels (UI Text) | Animation Logic (GLB Safe) | Visual Description | Narration.
+Step 2: Provide the same data in a valid JSON block at the end, wrapped in \`\`\`json tags.`;
 
   // Load on mount
   useEffect(() => {
@@ -171,6 +192,9 @@ export const Studio = ({ onBack }: StudioProps) => {
     try {
       const sceneCount = active.sceneCount || 6;
       
+      // Use custom prompt if provided, otherwise use default
+      const promptToUse = customPrompt.trim() || defaultPromptTemplate;
+      
       // Call Flask API (use environment variable for production)
       // In production (Vercel), VITE_FLASK_API_URL should be '/api'
       // In development, it should be 'http://localhost:5000'
@@ -184,7 +208,8 @@ export const Studio = ({ onBack }: StudioProps) => {
         },
         body: JSON.stringify({
           script: plainText,
-          sceneCount: sceneCount
+          sceneCount: sceneCount,
+          customPrompt: promptToUse // Send custom prompt to API
         })
       });
       
@@ -553,6 +578,15 @@ export const Studio = ({ onBack }: StudioProps) => {
           <div className="scene-card p-6">
             <div className="flex items-center justify-between mb-4">
               <h2 className="font-display text-2xl tracking-wide">Plain Text</h2>
+              <Button 
+                variant="ghost" 
+                size="sm"
+                onClick={() => setShowPromptEditor(!showPromptEditor)}
+                className="text-muted-foreground hover:text-primary"
+              >
+                <Settings className="h-4 w-4 mr-1.5" />
+                {showPromptEditor ? 'Hide' : 'Edit'} Prompt
+              </Button>
             </div>
             
             {/* Scene count slider */}
@@ -623,6 +657,44 @@ export const Studio = ({ onBack }: StudioProps) => {
             </div>
           </div>
         </div>
+
+        {/* Prompt Template Editor - Collapsible */}
+        {showPromptEditor && (
+          <div className="scene-card p-6">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h2 className="font-display text-xl tracking-wide">AI Prompt Template</h2>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Customize how AI generates scenes. Use {"{sceneCount}"} placeholder for scene count.
+                </p>
+              </div>
+              <Button 
+                variant="outline" 
+                size="sm"
+                onClick={() => {
+                  setCustomPrompt(defaultPromptTemplate);
+                  toast.success("Reset to default prompt");
+                }}
+              >
+                Reset to Default
+              </Button>
+            </div>
+            <Textarea
+              value={customPrompt || defaultPromptTemplate}
+              onChange={(e) => setCustomPrompt(e.target.value)}
+              placeholder="Enter your custom prompt template..."
+              className="min-h-[300px] resize-none text-xs font-mono bg-background/50 border-border focus:border-primary"
+            />
+            <div className="flex items-center justify-between mt-2">
+              <div className="mono text-[10px] uppercase tracking-widest text-muted-foreground">
+                {(customPrompt || defaultPromptTemplate).length} chars
+              </div>
+              <div className="text-xs text-muted-foreground">
+                {customPrompt.trim() ? '✓ Using custom prompt' : 'Using default prompt'}
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Settings panel - simplified */}
         <div className="scene-card p-6">

@@ -16,6 +16,7 @@ def generate_scenes():
         print(f"Received request data: {data}")
         script = data.get('script', '')
         scene_count = data.get('sceneCount', 6)
+        custom_prompt = data.get('customPrompt', '')  # Get custom prompt from request
         
         print(f"Script length: {len(script)}, Scene count: {scene_count}")
         
@@ -33,29 +34,37 @@ def generate_scenes():
             "Content-Type": "application/json"
         }
         
+        # Use custom prompt if provided, otherwise use default
+        if custom_prompt:
+            # Replace {sceneCount} placeholder with actual count
+            system_content = custom_prompt.replace('{sceneCount}', str(scene_count))
+        else:
+            # Default prompt
+            system_content = (
+                f"You are a Senior 3D Technical Director creating educational content for school students. "
+                f"CRITICAL REQUIREMENT: You MUST create EXACTLY {scene_count} scenes - no more, no less. "
+                f"If you create {scene_count - 1} or {scene_count + 1} scenes, you have FAILED the task. "
+                f"Count your scenes carefully before responding. "
+                "\n\nIMPORTANT GUIDELINES:\n"
+                "1. NARRATION: Write detailed, educational narration (3-5 sentences per scene) that explains concepts clearly for students\n"
+                "2. VISUAL DESCRIPTION (Context): Explain the SCIENTIFIC CONCEPT or PRINCIPLE being demonstrated - NOT the scene visuals\n"
+                "   - Example: 'Taste receptors on tongue detect sweet molecules' NOT 'Person eating sugar'\n"
+                "   - Focus on: Why it happens, what principle is shown, the science behind it\n"
+                "3. FOCUS: Emphasize scientific concepts, processes, and phenomena - NOT characters or people\n"
+                "4. VISUAL: Focus on objects, equipment, experiments, and visual demonstrations of concepts\n"
+                "5. 3D ASSETS: Prioritize educational props, lab equipment, diagrams, models - minimize human characters\n"
+                "6. LANGUAGE: Use simple, clear language suitable for school students\n\n"
+                "Step 1: Output a Markdown table with columns: "
+                "Scene # | Required 3D Assets | Labels (UI Text) | Animation Logic (GLB Safe) | Visual Description | Narration. "
+                "Step 2: Provide the same data in a valid JSON block at the end, wrapped in ```json tags."
+            )
+        
         payload = {
             "model": "llama-3.1-8b-instant",
             "messages": [
                 {
                     "role": "system", 
-                    "content": (
-                        f"You are a Senior 3D Technical Director creating educational content for school students. "
-                        f"CRITICAL REQUIREMENT: You MUST create EXACTLY {scene_count} scenes - no more, no less. "
-                        f"If you create {scene_count - 1} or {scene_count + 1} scenes, you have FAILED the task. "
-                        f"Count your scenes carefully before responding. "
-                        "\n\nIMPORTANT GUIDELINES:\n"
-                        "1. NARRATION: Write detailed, educational narration (3-5 sentences per scene) that explains concepts clearly for students\n"
-                        "2. VISUAL DESCRIPTION (Context): Explain the SCIENTIFIC CONCEPT or PRINCIPLE being demonstrated - NOT the scene visuals\n"
-                        "   - Example: 'Taste receptors on tongue detect sweet molecules' NOT 'Person eating sugar'\n"
-                        "   - Focus on: Why it happens, what principle is shown, the science behind it\n"
-                        "3. FOCUS: Emphasize scientific concepts, processes, and phenomena - NOT characters or people\n"
-                        "4. VISUAL: Focus on objects, equipment, experiments, and visual demonstrations of concepts\n"
-                        "5. 3D ASSETS: Prioritize educational props, lab equipment, diagrams, models - minimize human characters\n"
-                        "6. LANGUAGE: Use simple, clear language suitable for school students\n\n"
-                        "Step 1: Output a Markdown table with columns: "
-                        "Scene # | Required 3D Assets | Labels (UI Text) | Animation Logic (GLB Safe) | Visual Description | Narration. "
-                        "Step 2: Provide the same data in a valid JSON block at the end, wrapped in ```json tags."
-                    )
+                    "content": system_content
                 },
                 {
                     "role": "user", 
