@@ -172,6 +172,8 @@ export const Studio = ({ onBack }: StudioProps) => {
       const sceneCount = active.sceneCount || 6;
       
       // Call Flask API (use environment variable for production)
+      // In production (Vercel), VITE_FLASK_API_URL should be '/api'
+      // In development, it should be 'http://localhost:5000'
       const apiUrl = import.meta.env.VITE_FLASK_API_URL || 'http://localhost:5000';
       console.log('Using API URL:', apiUrl);
       const response = await fetch(`${apiUrl}/generate-scenes`, {
