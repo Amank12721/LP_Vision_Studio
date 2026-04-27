@@ -5,7 +5,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
-  ImageIcon, RefreshCw, Loader2, Pencil, Check, Download, Trash2, Volume2, ClipboardPaste,
+  ImageIcon, RefreshCw, Loader2, Pencil, Check, Download, Trash2, Volume2, ClipboardPaste, Wand2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -19,11 +19,18 @@ interface SceneCardProps {
 
 export const SceneCard = ({ scene, index, onUpdate, onGenerate, onDelete }: SceneCardProps) => {
   const [editing, setEditing] = useState(false);
+  const [editingPrompt, setEditingPrompt] = useState(false); // New: separate prompt editing state
   const [draft, setDraft] = useState(scene);
+  const [promptDraft, setPromptDraft] = useState(scene.imagePrompt); // New: separate prompt draft
 
   const save = () => {
     onUpdate(draft);
     setEditing(false);
+  };
+
+  const savePrompt = () => {
+    onUpdate({ ...scene, imagePrompt: promptDraft });
+    setEditingPrompt(false);
   };
 
   const downloadImage = () => {
@@ -115,7 +122,33 @@ export const SceneCard = ({ scene, index, onUpdate, onGenerate, onDelete }: Scen
 
       {/* Content */}
       <div className="p-5 flex flex-col gap-3 flex-1">
-        {editing ? (
+        {editingPrompt ? (
+          // Image Prompt Editor Mode
+          <>
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-2">
+                <Wand2 className="h-4 w-4 text-primary" />
+                <Label className="mono text-[10px] uppercase tracking-widest text-primary">Edit Image Prompt</Label>
+              </div>
+            </div>
+            <Textarea 
+              value={promptDraft} 
+              onChange={(e) => setPromptDraft(e.target.value)} 
+              className="text-sm resize-none min-h-[120px] bg-background/50 border-border focus:border-primary" 
+              placeholder="Describe the image you want to generate..."
+            />
+            <div className="text-xs text-muted-foreground">
+              {promptDraft.length} characters
+            </div>
+            <div className="flex gap-2 mt-2">
+              <Button size="sm" onClick={savePrompt} className="flex-1 bg-gradient-to-r from-blue-500 to-cyan-500 text-white hover:opacity-90">
+                <Check className="h-3.5 w-3.5 mr-1" /> Save Prompt
+              </Button>
+              <Button size="sm" variant="ghost" onClick={() => { setPromptDraft(scene.imagePrompt); setEditingPrompt(false); }}>Cancel</Button>
+            </div>
+          </>
+        ) : editing ? (
+          // Full Edit Mode
           <>
             <Input value={draft.title} onChange={(e) => setDraft({ ...draft, title: e.target.value })} className="font-display text-lg h-9" placeholder="Scene title" />
             <div className="grid grid-cols-2 gap-2">
@@ -189,6 +222,16 @@ export const SceneCard = ({ scene, index, onUpdate, onGenerate, onDelete }: Scen
               ) : (
                 <><ImageIcon className="h-3.5 w-3.5 mr-1.5" /> Generate Frame</>
               )}
+            </Button>
+            
+            {/* Edit Image Prompt Button */}
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setEditingPrompt(true)}
+              className="border-primary/40 hover:border-primary hover:bg-primary/10"
+            >
+              <Wand2 className="h-3.5 w-3.5 mr-1.5" /> Edit Image Prompt
             </Button>
           </>
         )}
