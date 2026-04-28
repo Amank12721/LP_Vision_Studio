@@ -198,9 +198,11 @@ Step 2: Provide the same data in a valid JSON block at the end, wrapped in \`\`\
       // Call Flask API (use environment variable for production)
       // In production (Vercel), VITE_FLASK_API_URL should be '/api'
       // In development, it should be 'http://localhost:5000'
-      const apiUrl = import.meta.env.VITE_FLASK_API_URL || 'http://localhost:5000';
+      const apiUrl = import.meta.env.VITE_FLASK_API_URL || (import.meta.env.PROD ? '/api' : 'http://localhost:5000');
       console.log('Using API URL:', apiUrl);
       console.log('Full URL:', `${apiUrl}/generate-scenes`);
+      console.log('Environment:', import.meta.env.MODE);
+      console.log('Is Production:', import.meta.env.PROD);
       
       const response = await fetch(`${apiUrl}/generate-scenes`, {
         method: 'POST',
