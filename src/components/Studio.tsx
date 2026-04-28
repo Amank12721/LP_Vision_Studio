@@ -200,6 +200,8 @@ Step 2: Provide the same data in a valid JSON block at the end, wrapped in \`\`\
       // In development, it should be 'http://localhost:5000'
       const apiUrl = import.meta.env.VITE_FLASK_API_URL || 'http://localhost:5000';
       console.log('Using API URL:', apiUrl);
+      console.log('Full URL:', `${apiUrl}/generate-scenes`);
+      
       const response = await fetch(`${apiUrl}/generate-scenes`, {
         method: 'POST',
         headers: {
@@ -213,8 +215,13 @@ Step 2: Provide the same data in a valid JSON block at the end, wrapped in \`\`\
         })
       });
       
+      console.log('Response status:', response.status);
+      console.log('Response ok:', response.ok);
+      
       if (!response.ok) {
-        throw new Error(`API error: ${response.status}`);
+        const errorText = await response.text();
+        console.error('API Error Response:', errorText);
+        throw new Error(`API error: ${response.status} - ${errorText}`);
       }
       
       const data = await response.json();
